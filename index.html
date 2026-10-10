@@ -62,6 +62,8 @@ details.panel[open]>summary::after{content:"－"}
 .stat .k{font-size:11px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stat .v{font-weight:650;font-size:15px;font-variant-numeric:tabular-nums}
 .stat .v small{font-weight:400;color:var(--mute);font-size:11px}
+.stat .v{overflow-wrap:anywhere}
+.stat .v .mny{font-size:13.5px}
 .card details{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
 .card details summary{cursor:pointer;font-size:13px;color:var(--mute)}
 .vids{display:flex;flex-direction:column;gap:8px;margin-top:8px}
@@ -191,6 +193,7 @@ ul.tips li{margin-bottom:5px}
       <div><label for="fShortsMin">% de Shorts min</label><input id="fShortsMin" inputmode="numeric" placeholder="ex. 70"></div>
       <div><label for="fLastMax">Dernière vidéo il y a ≤ (jours)</label><input id="fLastMax" inputmode="numeric" placeholder="ex. 14"></div>
       <div><label for="fVidsMax">Nombre de vidéos max</label><input id="fVidsMax" inputmode="numeric" placeholder="ex. 300"></div>
+      <div><label for="fRevMin">Revenus/mois estimés min ($)</label><input id="fRevMin" inputmode="decimal" placeholder="ex. 500"></div>
     </div>
     <div class="row">
       <div><label for="fSort">Classer les chaînes par</label>
@@ -204,6 +207,7 @@ ul.tips li{margin-bottom:5px}
           <option value="subsAsc">Abonnés (croissant)</option>
           <option value="subsDesc">Abonnés (décroissant)</option>
           <option value="us">Orientation US</option>
+          <option value="rev">Revenus/mois estimés</option>
         </select></div>
       <div><label for="fUs">Orientation US</label>
         <select id="fUs"><option value="">Toutes les chaînes</option><option value="1">🇺🇸 Orientées US uniquement</option></select></div>
@@ -236,6 +240,7 @@ ul.tips li{margin-bottom:5px}
   <details class="panel help" style="margin-top:16px">
     <summary>Comment lire les résultats</summary>
     <p><b>Méthode conseillée</b> : 1) « Découvrir des niches » (Tendances ou Exploration), 2) bouton 🔥 Pépites Shorts, 3) regarde les niches détectées, 4) touche une niche puis « Creuser cette niche » pour trouver toutes les chaînes de ce créneau.</p>
+    <p><b>💵 Revenus estimés</b> : ce sont des fourchettes publicitaires (AdSense) calculées par l'app, pas les vrais chiffres. Vues × RPM estimé, avec un RPM qui dépend de la part de Shorts et du marché probable de la chaîne (Shorts : ~0,10–0,30 $ aux USA, ~0,05–0,10 $ en France ; vidéos longues : ~3–8 $ aux USA, ~1,5–4 $ en France). « Revenus/mois » utilise le rythme des 50 dernières vidéos. « Revenus totaux » utilise toutes les vues de la chaîne depuis sa création (y compris avant monétisation, donc souvent surestimé). Sous 1 000 abonnés, la chaîne ne peut pas être monétisée. Les sponsors, l'affiliation et les ventes ne sont pas comptés.</p>
     <p><b>🇺🇸 Orientée US</b> : YouTube ne donne pas le pays des spectateurs d'une chaîne qui n'est pas la tienne. L'app l'estime avec des indices : pays déclaré de la chaîne, langue audio réglée en anglais (US), titres en anglais, références américaines. Le panneau « Pistes pour toucher les États-Unis » analyse les vidéos de ces chaînes (titres, tags, heure de publication, durée) pour te donner des exemples concrets.</p>
     <p><b>Tendances du moment</b> : les Shorts les plus vus de la période, sans mot-clé. Change de catégorie pour varier. <b>Exploration aléatoire</b> : l'app tire au hasard des thèmes variés et analyse les chaînes qui marchent dessus. Chaque clic sur « Explorer plus » ajoute de nouveaux thèmes.</p>
     <p><b>Vues moyennes</b> : moyenne des 50 dernières vidéos de la chaîne (Shorts et longues séparés en dessous).</p>
@@ -605,6 +610,42 @@ function hourIn(date,tz){
   try{const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,hour:'numeric',hourCycle:'h23'}).formatToParts(date).find(x=>x.type==='hour');return p?(+p.value)%24:NaN;}
   catch(err){return NaN;}
 }
+/* ---------- revenue estimate ---------- */
+const RPM={
+  us:{s:[0.10,0.30],l:[3,8],lbl:'USA'},
+  t1:{s:[0.07,0.18],l:[2,6],lbl:'anglophone'},
+  fr:{s:[0.05,0.10],l:[1.5,4],lbl:'francophone'},
+  lo:{s:[0.01,0.05],l:[0.3,1.5],lbl:'autres pays'}
+};
+const T1=new Set(['GB','CA','AU','NZ','IE','DE','CH','AT','NL','SE','NO','DK','FI','LU','SG','HK','JP','KR']);
+function marketOf(c){
+  const u=usInfo(c);
+  if(u.us)return 'us';
+  const a=c.a||{},lang=String(a.lang||'').toLowerCase();
+  const titles=[...(c.seeds||[]).map(s=>s.t),...(a.top||[]).map(v=>v.t)];
+  let fr=0,en=0;for(const t of titles){const l=titleLang(t);if(l==='fr')fr++;else if(l==='en')en++;}
+  if(['FR','BE','LU','MC'].includes(c.country)&&!/^en/.test(lang)||/^fr/.test(lang)||(fr>en&&fr>=2))return 'fr';
+  if(T1.has(c.country)||/^en/.test(lang)||en>fr)return 't1';
+  return 'lo';
+}
+function revenue(c){
+  const a=c.a||{};
+  if(!a.n||a.avg==null)return null;
+  const m=marketOf(c),R=RPM[m];
+  const ns=Math.round(a.n*(a.shortsPct??100)/100),nl=Math.max(0,a.n-ns);
+  const sv=(a.avgShort||0)*ns,lv=(a.avgLong||0)*nl,tot=sv+lv;
+  const sh=tot>0?sv/tot:(a.shortsPct??100)/100;
+  const rpm=[R.s[0]*sh+R.l[0]*(1-sh),R.s[1]*sh+R.l[1]*(1-sh)];
+  const span=(a.perWeek&&a.n>1?(a.n-1)/a.perWeek*7:0)+(daysSince(a.last)||0);
+  const mv=a.avg*a.n*30/Math.max(30,span);
+  const monet=!(c.subs!=null&&c.subs<1000);
+  const month=[mv*rpm[0]/1000,mv*rpm[1]/1000],total=[(c.views||0)*rpm[0]/1000,(c.views||0)*rpm[1]/1000];
+  return {m,lbl:R.lbl,sh,rpm,mv,monet,month,total,mid:monet?Math.sqrt(month[0]*month[1]):0};
+}
+function money(n){if(n==null||isNaN(n))return '—';if(n<1)return '<1';if(n<100)return String(Math.round(n));return fmt(n);}
+const moneyRange=r=>'<span class="mny">'+money(r[0])+'–'+money(r[1])+' $</span>';
+const rpmTxt=r=>'<span class="mny">'+r[0].toFixed(2).replace('.',',')+'–'+r[1].toFixed(2).replace('.',',')+' $</span>';
+
 const trUrl=t=>'https://translate.google.com/?sl=auto&tl=fr&op=translate&text='+encodeURIComponent(t);
 const hh=h=>String(h).padStart(2,'0')+' h';
 function renderUS(list){
@@ -745,7 +786,7 @@ async function run(more){
 function saveLast(){LS.set('ryt_last',{v:2,results:state.results,meta:state.meta,job:state.job});}
 
 /* ---------- filters ---------- */
-const FIDS=['fSubMin','fSubMax','fAgeMax','fAvgMin','fRatioMin','fShortsMin','fLastMax','fVidsMax'];
+const FIDS=['fSubMin','fSubMax','fAgeMax','fAvgMin','fRatioMin','fShortsMin','fLastMax','fVidsMax','fRevMin'];
 function readFilters(){const f={};FIDS.forEach(id=>f[id]=parseNum($('#'+id).value));f.sort=$('#fSort').value;f.us=$('#fUs').value==='1';f.niche=state.niche;return f;}
 const ratio=c=>c.subs>0&&c.a&&c.a.avg!=null?c.a.avg/c.subs:null;
 function passes(c,f){
@@ -759,6 +800,7 @@ function passes(c,f){
   if(f.fLastMax!=null&&!(daysSince(a.last)<=f.fLastMax))return false;
   if(f.fVidsMax!=null&&c.vids>f.fVidsMax)return false;
   if(f.us&&!usInfo(c).us)return false;
+  if(f.fRevMin!=null){const r=revenue(c);if(!r||!(r.mid>=f.fRevMin))return false;}
   if(f.niche&&!inNiche(c,f.niche))return false;
   return true;
 }
@@ -772,7 +814,8 @@ const sorters={
   freq:c=>(c.a&&c.a.perWeek)??NEG,
   subsAsc:c=>c.subs==null?NEG:-c.subs,
   subsDesc:c=>c.subs??NEG,
-  us:c=>usInfo(c).score*1000+Math.min(999,(ratio(c)??0)*100)
+  us:c=>usInfo(c).score*1000+Math.min(999,(ratio(c)??0)*100),
+  rev:c=>{const r=revenue(c);return r?r.mid:NEG;}
 };
 const PRESETS={
   pepites:{fShortsMin:'70',fAgeMax:'12',fRatioMin:'1',fLastMax:'14',fSort:'ratio'},
@@ -796,6 +839,7 @@ function badgesFor(c){
   if(age!=null&&age<=12&&r!=null&&r>=1)b.push('<span class="badge hot">🔥 Pépite</span>');
   if(r!=null&&r>=2)b.push('<span class="badge good">📈 Ratio x'+(r>=10?Math.round(r):r.toFixed(1).replace('.',','))+'</span>');
   if(a.outlier!=null&&a.outlier>=10)b.push('<span class="badge good">🚀 Outlier x'+Math.round(a.outlier)+'</span>');
+  {const rv=revenue(c);if(rv&&rv.monet&&rv.mid>=1000)b.push('<span class="badge good">💵 ~'+money(rv.mid)+' $/mois (est.)</span>');}
   if(c.subs>=1000&&a.sv90>=1e7)b.push('<span class="badge good">💰 Seuil Shorts atteint (est.)</span>');
   if(a.shortsPct!=null&&a.shortsPct>=70)b.push('<span class="badge">⚡ Shorts '+a.shortsPct+' %</span>');
   else if(a.shortsPct!=null&&a.shortsPct<=30)b.push('<span class="badge">🎬 Longues</span>');
@@ -830,6 +874,10 @@ function card(c){
       statCell('Fréquence',a.perWeek==null?'—':(a.perWeek>=10?Math.round(a.perWeek):a.perWeek.toFixed(1).replace('.',','))+' <small>/sem</small>')+
       statCell('Dernière vidéo',ago(a.last))+
       statCell('Vues Shorts 90 j',(a.cov90||!a.sv90?'':'≥ ')+fmt(a.sv90))+
+      (()=>{const rv=revenue(c);if(!rv)return '';
+        return statCell('Revenus/mois (est.)',rv.monet?moneyRange(rv.month):'<small>pas encore monétisable</small>')+
+          statCell('Revenus totaux (est.)',rv.monet?moneyRange(rv.total):'—')+
+          statCell('RPM estimé',rpmTxt(rv.rpm)+' <small>'+esc(rv.lbl)+'</small>');})()+
     '</div>';
   }
   const top=(a.top||[]).slice(0,6).map(v=>vidRow(v,a.med)).join('');
@@ -934,12 +982,12 @@ function syncMode(){
 function exportCsv(){
   const f=readFilters(),key=sorters[f.sort]||sorters.ratio;
   const list=state.results.filter(c=>passes(c,f)).sort((x,y)=>key(y)-key(x));
-  const head=['Chaîne','Lien','Abonnés','Créée le','Vidéos','Vues totales','Vues moy.','Médiane','Ratio vues/abo','Moy. Shorts','Moy. longues','% Shorts','Vidéos/sem','Dernière vidéo','Outlier','Vues Shorts 90j','Catégories','Trouvée via','Orientation US'];
+  const head=['Chaîne','Lien','Abonnés','Créée le','Vidéos','Vues totales','Vues moy.','Médiane','Ratio vues/abo','Moy. Shorts','Moy. longues','% Shorts','Vidéos/sem','Dernière vidéo','Outlier','Vues Shorts 90j','Catégories','Trouvée via','Orientation US','Marché estimé','RPM est. min ($)','RPM est. max ($)','Revenus/mois est. min ($)','Revenus/mois est. max ($)','Revenus totaux est. min ($)','Revenus totaux est. max ($)'];
   const rows=list.map(c=>{const a=c.a||{},r=ratio(c);return [
     c.name,'https://www.youtube.com/channel/'+c.id,c.subs??'',(c.created||'').slice(0,10),c.vids,c.views,
     a.avg!=null?Math.round(a.avg):'',a.med!=null?Math.round(a.med):'',r!=null?r.toFixed(3):'',
     a.avgShort!=null?Math.round(a.avgShort):'',a.avgLong!=null?Math.round(a.avgLong):'',a.shortsPct??'',
-    a.perWeek!=null?a.perWeek.toFixed(1):'',(a.last||'').slice(0,10),a.outlier!=null?a.outlier.toFixed(1):'',a.sv90??'',(c.topics||[]).map(topicLabel).join(', '),(c.via||[]).join(', '),usInfo(c).why.join(', ')];});
+    a.perWeek!=null?a.perWeek.toFixed(1):'',(a.last||'').slice(0,10),a.outlier!=null?a.outlier.toFixed(1):'',a.sv90??'',(c.topics||[]).map(topicLabel).join(', '),(c.via||[]).join(', '),usInfo(c).why.join(', '),...(()=>{const rv=revenue(c);if(!rv)return ['','','','','','',''];const z=rv.monet?1:0;return [rv.lbl,rv.rpm[0].toFixed(2),rv.rpm[1].toFixed(2),Math.round(rv.month[0]*z),Math.round(rv.month[1]*z),Math.round(rv.total[0]*z),Math.round(rv.total[1]*z)];})()];});
   const csv=[head,...rows].map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\n');
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
