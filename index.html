@@ -81,6 +81,15 @@ dialog ol{padding-left:20px;margin:8px 0;font-size:14px}
 dialog ol li{margin-bottom:5px}
 .flex{display:flex;gap:8px;flex-wrap:wrap}
 .more{display:flex;justify-content:center;margin:14px 0}
+.seg.big button{padding:10px 6px;font-size:15px}
+.nh{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 11px;font:inherit;font-size:13px;cursor:pointer}
+.chip small{color:var(--mute);margin-left:3px}
+.chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.chip.on small{color:#fff}
+.activeNiche{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);font-size:14px}
+.ch-via{font-size:12px;color:var(--mute);margin-top:8px}
 .help p{font-size:14px;margin:8px 0;color:var(--ink)}
 .help p b{color:var(--acc)}
 </style>
@@ -96,8 +105,39 @@ dialog ol li{margin-bottom:5px}
   </header>
 
   <section class="panel">
-    <label for="q">Niche / mot-clé</label>
-    <input id="q" placeholder="ex. compilation basket, animaux drôles, faits historiques…" autocomplete="off" enterkeyhint="search">
+    <div class="seg big" data-group="mode">
+      <button data-v="discover" class="on">🧭 Découvrir des niches</button>
+      <button data-v="search">🔎 Creuser une niche</button>
+    </div>
+    <div id="discoverBox" style="margin-top:12px">
+      <label>Source</label>
+      <div class="seg" data-group="src">
+        <button data-v="trend" class="on">Tendances du moment</button>
+        <button data-v="explore">Exploration aléatoire</button>
+      </div>
+      <div class="hint" id="srcHint"></div>
+      <div id="catBox" style="margin-top:10px"><label for="cat">Catégorie YouTube</label>
+        <select id="cat">
+          <option value="">Toutes les catégories</option>
+          <option value="24">Divertissement</option>
+          <option value="23">Humour</option>
+          <option value="17">Sport</option>
+          <option value="15">Animaux</option>
+          <option value="27">Éducation</option>
+          <option value="28">Science et technologie</option>
+          <option value="26">Astuces et style</option>
+          <option value="20">Jeux vidéo</option>
+          <option value="1">Films et animation</option>
+          <option value="2">Autos et véhicules</option>
+          <option value="22">Vlogs / personnes</option>
+          <option value="19">Voyages</option>
+          <option value="10">Musique</option>
+        </select></div>
+    </div>
+    <div id="searchBox" style="margin-top:12px;display:none">
+      <label for="q">Niche / mot-clé à creuser</label>
+      <input id="q" placeholder="ex. basketball highlights, space facts, funny cats…" autocomplete="off" enterkeyhint="search">
+    </div>
     <div style="margin-top:10px">
       <label>Format</label>
       <div class="seg" data-group="fmt">
@@ -159,6 +199,13 @@ dialog ol li{margin-bottom:5px}
     </div>
   </details>
 
+  <section class="panel" id="nichesBox" style="display:none">
+    <div class="nh"><b>Niches détectées</b><span class="hint" style="margin:0">Touche une niche pour filtrer · 🔥 = chaînes avec un ratio ≥ 1</span></div>
+    <div id="topicWrap"><div class="seedlbl">Catégories</div><div class="chips" id="topicChips"></div></div>
+    <div id="termWrap"><div class="seedlbl">Mots-clés qui reviennent</div><div class="chips" id="termChips"></div></div>
+    <div class="activeNiche" id="activeNiche" style="display:none"></div>
+  </section>
+
   <div class="toolbar" id="toolbar" style="display:none">
     <div class="meta" id="meta"></div>
     <div class="flex">
@@ -168,10 +215,12 @@ dialog ol li{margin-bottom:5px}
   </div>
   <div class="grid" id="results"></div>
   <div class="more" id="moreBox" style="display:none"><button class="btn" id="more">Charger 50 vidéos de plus</button></div>
-  <div class="empty" id="empty">Tape une niche et lance une recherche.<br>L'app trouve les vidéos qui marchent, puis analyse chaque chaîne derrière.</div>
+  <div class="empty" id="empty">Choisis une source et touche « Découvrir des niches ».<br>L'app repère les Shorts qui cartonnent, analyse les chaînes derrière et regroupe les niches qui reviennent.</div>
 
   <details class="panel help" style="margin-top:16px">
     <summary>Comment lire les résultats</summary>
+    <p><b>Méthode conseillée</b> : 1) « Découvrir des niches » (Tendances ou Exploration), 2) bouton 🔥 Pépites Shorts, 3) regarde les niches détectées, 4) touche une niche puis « Creuser cette niche » pour trouver toutes les chaînes de ce créneau.</p>
+    <p><b>Tendances du moment</b> : les Shorts les plus vus de la période, sans mot-clé. Change de catégorie pour varier. <b>Exploration aléatoire</b> : l'app tire au hasard des thèmes variés et analyse les chaînes qui marchent dessus. Chaque clic sur « Explorer plus » ajoute de nouveaux thèmes.</p>
     <p><b>Vues moyennes</b> : moyenne des 50 dernières vidéos de la chaîne (Shorts et longues séparés en dessous).</p>
     <p><b>Ratio vues/abonnés</b> : vues moyennes ÷ abonnés. Au-dessus de 1, la chaîne est poussée par l'algorithme au-delà de ses abonnés : c'est le meilleur signal d'une niche qui marche.</p>
     <p><b>Outlier</b> : sa meilleure vidéo récente comparée à sa vidéo « médiane ». x10 = une vidéo a fait 10 fois mieux que d'habitude : regarde-la en priorité.</p>
@@ -214,7 +263,17 @@ const LS={
   del(k){try{localStorage.removeItem(k);}catch(e){}}
 };
 const DAY=864e5, CACHE_TTL=3*DAY, PAGE_COST=100;
-const state={key:LS.get('ryt_key',''),results:[],meta:null,next:null,params:null,busy:false,cache:LS.get('ryt_cache',{})};
+const state={key:LS.get('ryt_key',''),results:[],meta:null,job:null,niche:null,busy:false,cache:LS.get('ryt_cache',{})};
+
+/* ---------- discovery data ---------- */
+const SEEDS_EN=['interesting facts','history facts','space facts','animal facts','psychology facts','oddly satisfying','funny animals','cute dogs','cats being cats','wildlife','ocean creatures','basketball highlights','soccer skills','boxing knockouts','ufc','gym motivation','calisthenics','motivation speech','stoicism','self improvement','money tips','luxury lifestyle','business ideas','ai generated video','reddit stories','scary stories','true crime','unsolved mysteries','minecraft','gta','roblox','cooking hacks','street food','asmr','life hacks','diy','woodworking','restoration','supercars','engineering','science experiments','geography','quiz','riddles','movie scenes','anime edits','pranks','magic tricks','fishing','survival','camping','drawing','art timelapse','nba edits','f1','golf','world records','ancient civilizations','military','did you know'];
+const SEEDS_FR=['le saviez-vous','anecdotes','histoire de france','faits incroyables','animaux drôles','chats','chiens','football','basket','boxe','musculation','motivation','développement personnel','argent','business','cuisine','recette rapide','astuces','satisfaisant','histoires reddit','histoires vraies','faits divers','mystère','minecraft','fortnite','voitures','voyage','humour','dessin','science','espace','records du monde','psychologie','quiz'];
+const CATS={'1':'Films et animation','2':'Autos et véhicules','10':'Musique','15':'Animaux','17':'Sport','19':'Voyages','20':'Jeux vidéo','22':'Vlogs / personnes','23':'Humour','24':'Divertissement','26':'Astuces et style','27':'Éducation','28':'Science et technologie'};
+const TOPIC_FR={'Music':'Musique','Pop music':'Pop','Hip hop music':'Rap / hip-hop','Electronic music':'Musique électro','Video game culture':'Jeux vidéo','Action game':'Jeux d\'action','Action-adventure game':'Jeux d\'aventure','Role-playing video game':'RPG','Strategy video game':'Jeux de stratégie','Sports game':'Jeux de sport','Racing video game':'Jeux de course','Puzzle video game':'Jeux de réflexion','Simulation video game':'Jeux de simulation','Casual game':'Jeux mobiles','Sport':'Sport','Basketball':'Basket','Association football':'Football','American football':'Foot US','Boxing':'Boxe','Mixed martial arts':'MMA','Physical fitness':'Fitness / muscu','Golf':'Golf','Tennis':'Tennis','Baseball':'Baseball','Ice hockey':'Hockey','Motorsport':'Sport auto','Volleyball':'Volley','Cricket':'Cricket','Wrestling':'Catch','Entertainment':'Divertissement','Humour':'Humour','Film':'Cinéma','Television program':'Séries / TV','Performing arts':'Spectacle','Lifestyle (sociology)':'Lifestyle','Food':'Cuisine','Pet':'Animaux','Tourism':'Voyage','Vehicle':'Véhicules','Technology':'Technologie','Knowledge':'Savoir / éducation','Society':'Société','Politics':'Politique','Health':'Santé','Hobby':'Loisirs','Fashion':'Mode','Physical attractiveness':'Beauté','Religion':'Religion','Military':'Militaire','Business':'Business'};
+const GENERIC_TOPICS=new Set(['Entertainment','Lifestyle (sociology)','Society']);
+const topicLabel=t=>TOPIC_FR[t]||t;
+const STOP=new Set(('the and for you your this that with from what when who how why was are not but all can just get got his her she him they them their our out one two new now day its i\'m don\'t didn\'t did does has have had will would could should into over than then there here were been being about after before only very more most some any every each like love make made see look watch know think want need let way time first last best top better never ever always still even much many real really wait end part full video videos short shorts ytshorts youtubeshorts youtube viral trending trend fyp foryou foryoupage explore explorepage subscribe comment share follow tiktok reels reel instagram shortvideo shortsvideo shortsfeed feed omg lol wow yes guy guys man day days this these those which where while gets going goes said says try tried shorts_ subscribers insane crazy amazing incredible epic unbelievable shocking knew gonna wanna literally actually almost everyone nobody someone something nothing things thing people biggest '+
+ 'les des une est pas que qui dans pour sur avec son ses mais par plus tout tous toute elle ils nous vous mon ton mes tes cette ces ont été fait faire comme quand même très bien aussi sans sous leur leurs être avoir vais ça c\'est j\'ai quoi comment pourquoi partie vidéo abonne abonnez abonnes abonnés lui moi toi elles alors encore jamais rien').split(/\s+/));
 
 /* ---------- utils ---------- */
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -373,20 +432,71 @@ async function pool(items,limit,fn,tick){
 /* ---------- search ---------- */
 function setStatus(t,err){const s=$('#status');s.textContent=t||'';s.className='status'+(err?' err':'');}
 function setProgress(p){const b=$('#bar');if(p==null){b.style.display='none';return;}b.style.display='block';b.firstElementChild.style.width=Math.round(p*100)+'%';}
-function setBusy(b){state.busy=b;$('#go').disabled=b;$('#more').disabled=b;$('#go').textContent=b?'Recherche en cours…':'Lancer la recherche';}
+function setBusy(b){state.busy=b;$('#go').disabled=b;$('#more').disabled=b;$('#go').textContent=b?'Analyse en cours…':goLabel();}
 
-function buildParams(){
-  const fmt=document.querySelector('[data-group=fmt] .on').dataset.v;
+const curSeg=g=>document.querySelector('[data-group='+g+'] .on').dataset.v;
+function baseParams(){
+  const fmt=curSeg('fmt');
   const period=+$('#period').value;
   return {
-    part:'snippet',type:'video',maxResults:50,q:$('#q').value.trim(),
+    part:'snippet',type:'video',maxResults:50,
     order:$('#order').value,regionCode:$('#region').value,relevanceLanguage:$('#lang').value,
     videoDuration:fmt==='any'?'':fmt,
     publishedAfter:period?new Date(Date.now()-period*DAY).toISOString().replace(/\.\d+Z$/,'Z'):''
   };
 }
+function pickSeeds(job,n){
+  const list=job.lang==='fr'?SEEDS_FR:SEEDS_EN;
+  let pool=list.filter(s=>!job.used.includes(s));
+  if(pool.length<n){job.used=[];pool=list.slice();}
+  const out=[];
+  while(out.length<n&&pool.length)out.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
+  job.used.push(...out);
+  return out;
+}
 
-async function ingest(items){
+/* ---------- niche detection ---------- */
+function channelTerms(c){
+  const titles=[...(c.seeds||[]).map(s=>s.t),...((c.a&&c.a.top)||[]).map(v=>v.t)];
+  const set=new Set();
+  for(const t of titles){
+    const raw=String(t||'').toLowerCase().replace(/https?:\S+/g,' ').split(/[^\p{L}\p{N}#'’]+/u);
+    let prev=null;
+    for(const r of raw){
+      const tag=r.startsWith('#');
+      const w=r.replace(/’/g,"'").replace(/^#+/,'').replace(/'s$/,'').replace(/^'+|'+$/g,'');
+      const ok=w.length>=3&&!STOP.has(w)&&!/^\d+$/.test(w)&&!w.includes('#');
+      if(ok)set.add(w);
+      if(ok&&!tag){if(prev)set.add(prev+' '+w);prev=w;}else prev=null;
+    }
+  }
+  return [...set].slice(0,120);
+}
+const termsOf=c=>c.terms||(c.terms=channelTerms(c));
+function nicheStats(list){
+  const topics=new Map(),terms=new Map();
+  const add=(m,k,c)=>{let e=m.get(k);if(!e){e={k,n:0,hot:0};m.set(k,e);}e.n++;const r=ratio(c);if(r!=null&&r>=1)e.hot++;};
+  for(const c of list){
+    for(const t of new Set(c.topics||[]))if(!GENERIC_TOPICS.has(t))add(topics,t,c);
+    for(const t of termsOf(c))add(terms,t,c);
+  }
+  const min=list.length>=20?3:2;
+  const rank=(a,b)=>b.hot-a.hot||b.n-a.n||a.k.localeCompare(b.k);
+  const topicArr=[...topics.values()].filter(e=>e.n>=2).sort(rank).slice(0,14);
+  const cand=[...terms.values()].filter(e=>e.n>=(e.k.includes(' ')?Math.max(min,3):min)&&e.n<=Math.max(min,list.length*0.85)).sort(rank);
+  const termArr=[];
+  for(const e of cand){
+    if(termArr.length>=20)break;
+    const parts=e.k.split(' ');
+    if(parts.length===1&&termArr.some(b=>b.k.includes(' ')&&b.k.split(' ').includes(e.k)&&b.n>=e.n*0.7))continue;
+    if(parts.length===2&&termArr.filter(b=>b.k.includes(' ')&&b.k.split(' ').some(p=>parts.includes(p))).length>=2)continue;
+    termArr.push(e);
+  }
+  return {topicArr,termArr};
+}
+function inNiche(c,n){return n.type==='topic'?(c.topics||[]).includes(n.v):termsOf(c).includes(n.v);}
+
+async function ingest(items,via){
   const byCh=new Map();
   for(const it of items){
     const cid=it.snippet&&it.snippet.channelId,vid=it.id&&it.id.videoId;
@@ -394,6 +504,7 @@ async function ingest(items){
     if(!byCh.has(cid))byCh.set(cid,[]);
     byCh.get(cid).push({id:vid,t:decode(it.snippet.title)});
   }
+  const addVia=c=>{c.via=c.via||[];if(via&&!c.via.includes(via)&&c.via.length<4)c.via.push(via);};
   const seeds=[...byCh.values()].flat();
   const st={};
   for(const ids of chunk(seeds.map(s=>s.id),50)){
@@ -404,15 +515,18 @@ async function ingest(items){
   for(const c of state.results){
     if(byCh.has(c.id)){
       for(const s of byCh.get(c.id))if(!c.seeds.some(x=>x.id===s.id))c.seeds.push(s);
+      addVia(c);c.terms=null;
       byCh.delete(c.id);
     }
   }
   const fresh=[];
   for(const ids of chunk([...byCh.keys()],50)){
-    const r=await yt('channels',{part:'snippet,statistics,contentDetails',id:ids.join(','),maxResults:50},1);
+    const r=await yt('channels',{part:'snippet,statistics,contentDetails,topicDetails',id:ids.join(','),maxResults:50},1);
     for(const c of r.items||[]){
       const sn=c.snippet||{},s=c.statistics||{};
       fresh.push({
+        topics:[...new Set(((c.topicDetails&&c.topicDetails.topicCategories)||[]).map(u=>{try{return decodeURIComponent(u.split('/').pop()).replace(/_/g,' ');}catch(e){return '';}}).filter(Boolean))],
+        via:via?[via]:[],
         id:c.id,name:sn.title,handle:sn.customUrl||'',country:sn.country||'',created:sn.publishedAt,
         thumb:(sn.thumbnails&&(sn.thumbnails.default||sn.thumbnails.medium)||{}).url||'',
         subs:s.hiddenSubscriberCount?null:+(s.subscriberCount||0),views:+(s.viewCount||0),vids:+(s.videoCount||0),
@@ -426,6 +540,7 @@ async function ingest(items){
   try{
     await pool(fresh,6,async c=>{c.a=await analyzeChannel(c);},()=>{done++;setProgress(done/Math.max(1,fresh.length));setStatus('Analyse des chaînes… '+done+'/'+fresh.length);});
   }finally{
+    fresh.forEach(c=>{c.terms=channelTerms(c);});
     state.results.push(...fresh);
     saveCache();
   }
@@ -435,28 +550,50 @@ async function ingest(items){
 async function run(more){
   if(state.busy)return;
   if(!state.key){openSettings();return;}
-  let params,token=null,pages;
-  if(more){params=state.params;token=state.next;pages=1;if(!params||!token)return;}
+  let job;
+  if(more){job=state.job;if(!job||!job.more)return;}
   else{
-    params=buildParams();
-    if(!params.q){setStatus('Tape une niche ou un mot-clé.',true);$('#q').focus();return;}
-    pages=+$('#pages').value;
-    state.results=[];state.next=null;state.params=params;
-    state.meta={q:params.q,at:new Date().toISOString(),fmt:params.videoDuration||'any'};
+    const mode=curSeg('mode'),base=baseParams(),depth=+$('#pages').value;
+    if(mode==='search'){
+      const q=$('#q').value.trim();
+      if(!q){setStatus('Tape la niche à creuser (ou passe en mode « Découvrir des niches »).',true);$('#q').focus();return;}
+      job={kind:'search',params:{...base,q},depth,label:'« '+q+' »'};
+    }else if(curSeg('src')==='trend'){
+      const cat=$('#cat').value;
+      job={kind:'trend',params:{...base,videoCategoryId:cat},depth,label:'Tendances · '+(cat?CATS[cat]:'toutes catégories')};
+    }else{
+      job={kind:'explore',params:base,depth:depth*3,label:'Exploration aléatoire',used:[],themes:0,lang:$('#lang').value};
+    }
+    state.results=[];state.niche=null;state.job=job;
+    state.meta={label:job.label,at:new Date().toISOString()};
     render();
   }
   setBusy(true);
   let added=0;
   try{
-    for(let p=0;p<pages;p++){
-      setStatus('Recherche des vidéos qui marchent… '+(p+1)+'/'+pages);setProgress(null);
-      const r=await yt('search',{...params,pageToken:token||''},PAGE_COST);
-      token=r.nextPageToken||null;
-      added+=await ingest(r.items||[]);
-      render();
-      if(!token)break;
+    if(job.kind==='explore'){
+      const seeds=pickSeeds(job,more?3:job.depth);
+      for(let i=0;i<seeds.length;i++){
+        setStatus('Thème '+(i+1)+'/'+seeds.length+' : « '+seeds[i]+' »…');setProgress(null);
+        const r=await yt('search',{...job.params,q:seeds[i]},PAGE_COST);
+        job.themes++;
+        state.meta.label='Exploration aléatoire · '+job.themes+' thème'+(job.themes>1?'s':'');
+        added+=await ingest(r.items||[],'thème « '+seeds[i]+' »');
+        render();
+      }
+      job.more=true;
+    }else{
+      let token=more?job.next:null;
+      const pages=more?1:job.depth;
+      for(let p=0;p<pages;p++){
+        setStatus('Recherche des vidéos qui cartonnent… '+(p+1)+'/'+pages);setProgress(null);
+        const r=await yt('search',{...job.params,pageToken:token||''},PAGE_COST);
+        token=r.nextPageToken||null;job.next=token;job.more=!!token;
+        added+=await ingest(r.items||[],job.label);
+        render();
+        if(!token)break;
+      }
     }
-    state.next=token;
     setStatus(added?added+' nouvelle'+(added>1?'s':'')+' chaîne'+(added>1?'s':'')+' analysée'+(added>1?'s':'')+'.':'Aucune nouvelle chaîne trouvée.');
   }catch(e){
     console.error(e);setStatus(friendly(e),true);
@@ -465,11 +602,11 @@ async function run(more){
   }
 }
 
-function saveLast(){LS.set('ryt_last',{results:state.results,meta:state.meta,next:state.next,params:state.params});}
+function saveLast(){LS.set('ryt_last',{v:2,results:state.results,meta:state.meta,job:state.job});}
 
 /* ---------- filters ---------- */
 const FIDS=['fSubMin','fSubMax','fAgeMax','fAvgMin','fRatioMin','fShortsMin','fLastMax','fVidsMax'];
-function readFilters(){const f={};FIDS.forEach(id=>f[id]=parseNum($('#'+id).value));f.sort=$('#fSort').value;return f;}
+function readFilters(){const f={};FIDS.forEach(id=>f[id]=parseNum($('#'+id).value));f.sort=$('#fSort').value;f.niche=state.niche;return f;}
 const ratio=c=>c.subs>0&&c.a&&c.a.avg!=null?c.a.avg/c.subs:null;
 function passes(c,f){
   const a=c.a||{};
@@ -481,6 +618,7 @@ function passes(c,f){
   if(f.fShortsMin!=null&&!(a.shortsPct>=f.fShortsMin))return false;
   if(f.fLastMax!=null&&!(daysSince(a.last)<=f.fLastMax))return false;
   if(f.fVidsMax!=null&&c.vids>f.fVidsMax)return false;
+  if(f.niche&&!inNiche(c,f.niche))return false;
   return true;
 }
 const NEG=-Infinity;
@@ -556,47 +694,110 @@ function card(c){
     '<div class="ch-head">'+(c.thumb?'<img class="av" loading="lazy" src="'+esc(c.thumb)+'" alt="">':'<div class="av"></div>')+
     '<div style="min-width:0"><a class="ch-name" href="'+url+'" target="_blank" rel="noopener">'+esc(c.name)+'</a><div class="ch-sub">'+sub+'</div></div></div>'+
     '<div class="badges">'+badgesFor(c)+'</div>'+stats+
+    ((c.topics&&c.topics.length)||(c.via&&c.via.length)?'<div class="ch-via">'+
+      (c.topics&&c.topics.length?'Catégories : '+esc(c.topics.map(topicLabel).join(', ')):'')+
+      (c.topics&&c.topics.length&&c.via&&c.via.length?'<br>':'')+
+      (c.via&&c.via.length?'Trouvée via : '+esc(c.via.join(', ')):'')+'</div>':'')+
     '<details><summary>Voir les vidéos</summary>'+
       (seeds?'<div class="seedlbl">Trouvée grâce à :</div><div class="vids">'+seeds+'</div>':'')+
       (top?'<div class="seedlbl">Ses meilleures vidéos récentes :</div><div class="vids">'+top+'</div>':'')+
     '</details></article>';
 }
+function chipHtml(type,e,label){
+  const on=state.niche&&state.niche.type===type&&state.niche.v===e.k;
+  return '<button class="chip'+(on?' on':'')+'" data-nt="'+type+'" data-nv="'+esc(e.k)+'">'+esc(label)+
+    ' <small>'+e.n+(e.hot?' · 🔥'+e.hot:'')+'</small></button>';
+}
+function renderNiches(base){
+  const box=$('#nichesBox');
+  if(!state.results.length){box.style.display='none';return;}
+  const {topicArr,termArr}=nicheStats(base);
+  box.style.display='block';
+  $('#topicWrap').style.display=topicArr.length?'block':'none';
+  $('#termWrap').style.display=termArr.length?'block':'none';
+  $('#topicChips').innerHTML=topicArr.map(e=>chipHtml('topic',e,topicLabel(e.k))).join('');
+  $('#termChips').innerHTML=termArr.map(e=>chipHtml('term',e,e.k)).join('')||'';
+  if(!topicArr.length&&!termArr.length){
+    $('#termWrap').style.display='block';
+    $('#termChips').innerHTML='<span class="hint">Pas assez de chaînes pour dégager des niches. Charge plus de résultats ou assouplis les filtres.</span>';
+  }
+  const an=$('#activeNiche');
+  if(state.niche){
+    const lbl=state.niche.type==='topic'?topicLabel(state.niche.v):state.niche.v;
+    an.style.display='flex';
+    an.innerHTML='<span>Niche : <b>'+esc(lbl)+'</b></span>'+
+      '<button class="btn small" id="nicheClear">✕ Retirer</button>'+
+      '<button class="btn small" id="nicheDig" style="background:var(--acc);color:#fff">🔎 Creuser cette niche</button>';
+  }else{an.style.display='none';an.innerHTML='';}
+}
+function digNiche(){
+  if(!state.niche)return;
+  const q=state.niche.v;
+  state.niche=null;
+  setSeg('mode','search');
+  $('#q').value=q;
+  syncMode();
+  window.scrollTo({top:0,behavior:'smooth'});
+  run(false);
+}
 function render(){
   const f=readFilters();
   const active=FIDS.filter(id=>f[id]!=null).length;
   $('#filterCount').textContent=active?active+' actif'+(active>1?'s':''):'';
-  const list=state.results.filter(c=>passes(c,f));
+  const base=state.results.filter(c=>passes(c,{...f,niche:null}));
+  if(state.niche&&!base.some(c=>inNiche(c,state.niche)))state.niche=null;
+  const list=state.niche?base.filter(c=>inNiche(c,state.niche)):base;
   const key=sorters[f.sort]||sorters.ratio;
   list.sort((x,y)=>key(y)-key(x));
   const has=state.results.length>0;
+  renderNiches(base);
   $('#toolbar').style.display=has?'flex':'none';
   $('#empty').style.display=has?'none':'block';
-  $('#moreBox').style.display=has&&state.next?'flex':'none';
+  const canMore=has&&state.job&&state.job.more;
+  $('#moreBox').style.display=canMore?'flex':'none';
+  if(canMore)$('#more').textContent=state.job.kind==='explore'?'Explorer 3 thèmes de plus':'Charger 50 vidéos de plus';
   if(state.meta){
-    $('#meta').innerHTML='<b>'+list.length+'</b> / '+state.results.length+' chaînes · « '+esc(state.meta.q)+' » · '+
+    $('#meta').innerHTML='<b>'+list.length+'</b> / '+state.results.length+' chaînes · '+esc(state.meta.label||('« '+(state.meta.q||'')+' »'))+' · '+
       new Date(state.meta.at).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
   }
   $('#results').innerHTML=list.length?list.map(card).join(''):(has?'<div class="empty" style="grid-column:1/-1">Aucune chaîne ne passe tes filtres. Assouplis-les ou charge plus de résultats.</div>':'');
 }
 function costHint(){
-  const p=+$('#pages').value;
-  $('#costHint').textContent='Coût ≈ '+(p*PAGE_COST+p*60)+' unités · reste ≈ '+Math.max(0,10000-getQuota().used).toLocaleString('fr-FR');
+  const p=+$('#pages').value,mult=curSeg('mode')==='discover'&&curSeg('src')==='explore'?3:1;
+  $('#costHint').textContent='Coût ≈ '+(p*mult*(PAGE_COST+60))+' unités · reste ≈ '+Math.max(0,10000-getQuota().used).toLocaleString('fr-FR');
+}
+function setSeg(g,v){document.querySelectorAll('[data-group='+g+'] button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));}
+const goLabel=()=>curSeg('mode')==='search'?'Creuser cette niche':'Découvrir des niches';
+function syncMode(){
+  const m=curSeg('mode'),s=curSeg('src');
+  $('#discoverBox').style.display=m==='discover'?'block':'none';
+  $('#searchBox').style.display=m==='search'?'block':'none';
+  $('#catBox').style.display=s==='trend'?'block':'none';
+  $('#srcHint').textContent=s==='trend'
+    ?'Aucun mot-clé : l\'app prend les Shorts les plus vus de la période et analyse les chaînes derrière. Change de catégorie pour varier.'
+    :'Aucun mot-clé : l\'app tire au hasard des thèmes variés (faits, animaux, sport, histoires…) et garde les chaînes qui cartonnent.';
+  const explore=m==='discover'&&s==='explore';
+  const labels=explore?['3 thèmes','6 thèmes','9 thèmes']:['50 vidéos','100 vidéos','150 vidéos'];
+  [...$('#pages').options].forEach((o,i)=>o.textContent=labels[i]);
+  if(!state.busy)$('#go').textContent=goLabel();
+  LS.set('ryt_ui',{mode:m,src:s,cat:$('#cat').value});
+  costHint();
 }
 
 /* ---------- CSV ---------- */
 function exportCsv(){
   const f=readFilters(),key=sorters[f.sort]||sorters.ratio;
   const list=state.results.filter(c=>passes(c,f)).sort((x,y)=>key(y)-key(x));
-  const head=['Chaîne','Lien','Abonnés','Créée le','Vidéos','Vues totales','Vues moy.','Médiane','Ratio vues/abo','Moy. Shorts','Moy. longues','% Shorts','Vidéos/sem','Dernière vidéo','Outlier','Vues Shorts 90j'];
+  const head=['Chaîne','Lien','Abonnés','Créée le','Vidéos','Vues totales','Vues moy.','Médiane','Ratio vues/abo','Moy. Shorts','Moy. longues','% Shorts','Vidéos/sem','Dernière vidéo','Outlier','Vues Shorts 90j','Catégories','Trouvée via'];
   const rows=list.map(c=>{const a=c.a||{},r=ratio(c);return [
     c.name,'https://www.youtube.com/channel/'+c.id,c.subs??'',(c.created||'').slice(0,10),c.vids,c.views,
     a.avg!=null?Math.round(a.avg):'',a.med!=null?Math.round(a.med):'',r!=null?r.toFixed(3):'',
     a.avgShort!=null?Math.round(a.avgShort):'',a.avgLong!=null?Math.round(a.avgLong):'',a.shortsPct??'',
-    a.perWeek!=null?a.perWeek.toFixed(1):'',(a.last||'').slice(0,10),a.outlier!=null?a.outlier.toFixed(1):'',a.sv90??''];});
+    a.perWeek!=null?a.perWeek.toFixed(1):'',(a.last||'').slice(0,10),a.outlier!=null?a.outlier.toFixed(1):'',a.sv90??'',(c.topics||[]).map(topicLabel).join(', '),(c.via||[]).join(', ')];});
   const csv=[head,...rows].map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\n');
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='radar-yt-'+(state.meta?state.meta.q.replace(/[^\w-]+/g,'-'):'export')+'.csv';
+  a.download='radar-yt-'+(state.meta&&state.meta.label?state.meta.label.replace(/[^\w-]+/g,'-').replace(/^-+|-+$/g,''):'export')+'.csv';
   document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
 }
 
@@ -620,7 +821,19 @@ $('#clearCache').onclick=()=>{state.cache={};LS.del('ryt_cache');$('#keyStatus')
 document.querySelectorAll('.seg').forEach(seg=>seg.addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
   seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+  syncMode();
 }));
+$('#cat').onchange=syncMode;
+$('#nichesBox').addEventListener('click',e=>{
+  const chip=e.target.closest('.chip');
+  if(chip){
+    const n={type:chip.dataset.nt,v:chip.dataset.nv};
+    state.niche=state.niche&&state.niche.type===n.type&&state.niche.v===n.v?null:n;
+    render();return;
+  }
+  if(e.target.closest('#nicheClear')){state.niche=null;render();return;}
+  if(e.target.closest('#nicheDig'))digNiche();
+});
 $('#go').onclick=()=>run(false);
 $('#more').onclick=()=>run(true);
 $('#q').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();run(false);}});
@@ -628,13 +841,20 @@ $('#pages').onchange=costHint;
 FIDS.concat('fSort').forEach(id=>$('#'+id).addEventListener('input',()=>{saveFilters();render();}));
 document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>applyPreset(b.dataset.preset));
 $('#csv').onclick=exportCsv;
-$('#clear').onclick=()=>{state.results=[];state.meta=null;state.next=null;LS.del('ryt_last');setStatus('');render();};
+$('#clear').onclick=()=>{state.results=[];state.meta=null;state.job=null;state.niche=null;LS.del('ryt_last');setStatus('');render();};
 
 /* ---------- init ---------- */
 loadFilters();
+const ui=LS.get('ryt_ui',null);
+if(ui){if(ui.mode)setSeg('mode',ui.mode);if(ui.src)setSeg('src',ui.src);if(ui.cat===''||CATS[ui.cat])$('#cat').value=ui.cat;}
 const last=LS.get('ryt_last',null);
-if(last&&Array.isArray(last.results)){Object.assign(state,{results:last.results,meta:last.meta,next:last.next,params:last.params});if(state.meta)$('#q').value=state.meta.q;}
-renderQuota();costHint();render();
+if(last&&Array.isArray(last.results)){
+  state.results=last.results;state.meta=last.meta||null;state.job=last.v===2?last.job:null;
+  if(state.meta&&!state.meta.label&&state.meta.q)state.meta.label='« '+state.meta.q+' »';
+  if(state.job&&state.job.kind==='search')$('#q').value=state.job.params.q||'';
+  else if(!last.v&&last.meta&&last.meta.q)$('#q').value=last.meta.q;
+}
+renderQuota();syncMode();render();
 setInterval(()=>{renderQuota();costHint();},60000);
 if(!state.key)setTimeout(openSettings,300);
 
