@@ -90,6 +90,14 @@ dialog ol li{margin-bottom:5px}
 .chip.on small{color:#fff}
 .activeNiche{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);font-size:14px}
 .ch-via{font-size:12px;color:var(--mute);margin-top:8px}
+.badge.us{background:color-mix(in srgb,#3b6fd8 20%,transparent);color:#3b6fd8;font-weight:600}
+@media (prefers-color-scheme:dark){.badge.us{color:#86a8ff}}
+.chip.static{cursor:default}
+ul.tips{margin:6px 0 4px;padding-left:20px;font-size:14px}
+ul.tips li{margin-bottom:5px}
+#usBody .vid{text-decoration:none}
+#usBody .vid img{display:block}
+#usBody .m a{color:var(--acc)}
 .help p{font-size:14px;margin:8px 0;color:var(--ink)}
 .help p b{color:var(--acc)}
 </style>
@@ -195,7 +203,10 @@ dialog ol li{margin-bottom:5px}
           <option value="freq">Fréquence de publication</option>
           <option value="subsAsc">Abonnés (croissant)</option>
           <option value="subsDesc">Abonnés (décroissant)</option>
+          <option value="us">Orientation US</option>
         </select></div>
+      <div><label for="fUs">Orientation US</label>
+        <select id="fUs"><option value="">Toutes les chaînes</option><option value="1">🇺🇸 Orientées US uniquement</option></select></div>
     </div>
   </details>
 
@@ -205,6 +216,11 @@ dialog ol li{margin-bottom:5px}
     <div id="termWrap"><div class="seedlbl">Mots-clés qui reviennent</div><div class="chips" id="termChips"></div></div>
     <div class="activeNiche" id="activeNiche" style="display:none"></div>
   </section>
+
+  <details class="panel" id="usBox" style="display:none" open>
+    <summary>🇺🇸 Pistes pour toucher les États-Unis</summary>
+    <div id="usBody"></div>
+  </details>
 
   <div class="toolbar" id="toolbar" style="display:none">
     <div class="meta" id="meta"></div>
@@ -220,6 +236,7 @@ dialog ol li{margin-bottom:5px}
   <details class="panel help" style="margin-top:16px">
     <summary>Comment lire les résultats</summary>
     <p><b>Méthode conseillée</b> : 1) « Découvrir des niches » (Tendances ou Exploration), 2) bouton 🔥 Pépites Shorts, 3) regarde les niches détectées, 4) touche une niche puis « Creuser cette niche » pour trouver toutes les chaînes de ce créneau.</p>
+    <p><b>🇺🇸 Orientée US</b> : YouTube ne donne pas le pays des spectateurs d'une chaîne qui n'est pas la tienne. L'app l'estime avec des indices : pays déclaré de la chaîne, langue audio réglée en anglais (US), titres en anglais, références américaines. Le panneau « Pistes pour toucher les États-Unis » analyse les vidéos de ces chaînes (titres, tags, heure de publication, durée) pour te donner des exemples concrets.</p>
     <p><b>Tendances du moment</b> : les Shorts les plus vus de la période, sans mot-clé. Change de catégorie pour varier. <b>Exploration aléatoire</b> : l'app tire au hasard des thèmes variés et analyse les chaînes qui marchent dessus. Chaque clic sur « Explorer plus » ajoute de nouveaux thèmes.</p>
     <p><b>Vues moyennes</b> : moyenne des 50 dernières vidéos de la chaîne (Shorts et longues séparés en dessous).</p>
     <p><b>Ratio vues/abonnés</b> : vues moyennes ÷ abonnés. Au-dessus de 1, la chaîne est poussée par l'algorithme au-delà de ses abonnés : c'est le meilleur signal d'une niche qui marche.</p>
@@ -394,12 +411,22 @@ function computeAnalysis(vids){
     sv90:shorts.filter(x=>new Date(x.date).getTime()>=cut).reduce((s,x)=>s+x.views,0),
     cov90:oldest<=cut,
     outlier:med>0?Math.max(...views)/med:null,
-    top:[...vids].sort((a,b)=>b.views-a.views).slice(0,8).map(x=>({id:x.id,t:x.title,v:x.views,d:x.dur,p:x.date}))
+    lang:modeOf(vids.map(x=>x.lang).filter(Boolean)),
+    ver:2,
+    top:[...vids].sort((a,b)=>b.views-a.views).slice(0,8).map(x=>({id:x.id,t:x.title,v:x.views,d:x.dur,p:x.date,g:x.tags||[]}))
   };
 }
+function modeOf(a){const m=new Map();let best='',n=0;for(const x of a){const k=m.get(x)+1||1;m.set(x,k);if(k>n){n=k;best=x;}}return best;}
+function tagsOf(sn){
+  sn=sn||{};
+  const t=(sn.tags||[]).slice(0,10).map(x=>String(x).toLowerCase().replace(/^#/,''));
+  const h=((sn.title||'')+' '+String(sn.description||'').slice(0,600)).match(/#[\p{L}\p{N}_]+/gu)||[];
+  return [...new Set([...t,...h.slice(0,8).map(x=>x.slice(1).toLowerCase())])].filter(x=>x&&x.length<=40).slice(0,14);
+}
+const langOf=sn=>(sn&&(sn.defaultAudioLanguage||sn.defaultLanguage))||'';
 async function analyzeChannel(ch){
   const c=state.cache[ch.id];
-  if(c&&Date.now()-c.t<CACHE_TTL)return c.a;
+  if(c&&Date.now()-c.t<CACHE_TTL&&c.a&&(c.a.ver===2||!c.a.n))return c.a;
   if(!ch.uploads)return {n:0};
   let items;
   try{const r=await yt('playlistItems',{part:'contentDetails',playlistId:ch.uploads,maxResults:50},1);items=r.items||[];}
@@ -410,6 +437,7 @@ async function analyzeChannel(ch){
     const r=await yt('videos',{part:'snippet,contentDetails,statistics',id:ids.join(','),maxResults:50},1);
     a=computeAnalysis((r.items||[]).map(x=>({
       id:x.id,title:x.snippet.title,date:x.snippet.publishedAt,live:x.snippet.liveBroadcastContent,
+      tags:tagsOf(x.snippet),lang:langOf(x.snippet),
       views:+((x.statistics&&x.statistics.viewCount)||0),dur:isoDur(x.contentDetails&&x.contentDetails.duration)
     })));
   }
@@ -496,6 +524,117 @@ function nicheStats(list){
 }
 function inNiche(c,n){return n.type==='topic'?(c.topics||[]).includes(n.v):termsOf(c).includes(n.v);}
 
+/* ---------- US targeting ---------- */
+const US_RE=/\b(usa|u\.s\.a?\.?|america|american|americans|nba|nfl|mlb|nhl|ncaa|super ?bowl|march madness|thanksgiving|4th of july|fourth of july|independence day|black friday|walmart|costco|mcdonald'?s|taco bell|starbucks|wendy'?s|chick-?fil-?a|texas|california|florida|new york|nyc|chicago|los angeles|las vegas|miami|alaska|hawaii|ohio|arizona|trump|biden|white house|dollars?)\b|\$\s?\d[\d,.]*/gi;
+const US_NORM={'u.s':'usa','u.s.':'usa','u.s.a':'usa','u.s.a.':'usa','americans':'american','dollar':'dollars','superbowl':'super bowl','fourth of july':'4th of july'};
+function usRefs(t){
+  const out=new Set();
+  for(const m of String(t||'').matchAll(US_RE)){
+    let k=m[0].toLowerCase().trim();
+    if(k.startsWith('$'))k='prix en $';
+    out.add(US_NORM[k]||k);
+  }
+  return [...out];
+}
+const EN_W=new Set('the you your this what how when why is are my of to in and with that it was for they he she'.split(' '));
+const FR_W=new Set('le la les des est une pour qui ce mon ton un du au avec que il elle ils sur pas'.split(' '));
+function titleLang(t){
+  let en=0,fr=0;
+  for(const w of String(t||'').toLowerCase().split(/[^\p{L}']+/u)){if(EN_W.has(w))en++;if(FR_W.has(w))fr++;}
+  return en>fr?'en':fr>en?'fr':'';
+}
+function usInfo(c){
+  const a=c.a||{};
+  const titles=[...(c.seeds||[]).map(s=>s.t),...(a.top||[]).map(v=>v.t)];
+  let en=0,fr=0,refs=0;
+  for(const t of titles){const l=titleLang(t);if(l==='en')en++;else if(l==='fr')fr++;if(usRefs(t).length)refs++;}
+  const lang=a.lang||modeOf((c.seeds||[]).map(s=>s.l).filter(Boolean));
+  let s=0;const why=[];
+  if(c.country==='US'){s+=3;why.push('chaîne déclarée aux USA');}
+  if(/^en-us/i.test(lang)){s+=2;why.push('audio réglé en anglais US');}
+  else if(/^en/i.test(lang)){s+=1;why.push('audio en anglais');}
+  if(en>fr&&en>=Math.max(1,titles.length*0.3)){s+=1;why.push('titres en anglais');}
+  if(refs>=2||(refs>=1&&titles.length<=3)){s+=1;why.push('références US dans les titres');}
+  return {score:s,us:s>=2,why};
+}
+const GENERIC_TAGS=new Set(['shorts','short','viral','fyp','foryou','foryoupage','trending','trend','ytshorts','youtubeshorts','youtube','shortvideo','shortsvideo','shortsfeed','explore','explorepage','subscribe','tiktok','reels','viralvideo','viralshorts','funny','video','new','2025','2026']);
+function usInsights(list){
+  let pool=list.filter(c=>usInfo(c).us),mode='us';
+  if(pool.length<3){pool=list.filter(c=>usInfo(c).score>=1);mode='en';}
+  if(pool.length<2)return null;
+  const seen=new Set(),vids=[];
+  for(const c of pool){
+    const a=c.a||{},med=a.med;
+    for(const v of [...(c.seeds||[]).map(s=>({id:s.id,t:s.t,v:s.v,d:s.d,p:s.p,g:s.g})),...(a.top||[])]){
+      if(!v||!v.id||seen.has(v.id)||v.v==null)continue;
+      seen.add(v.id);
+      vids.push({...v,g:v.g||[],ch:c.name,x:med>0?v.v/med:null});
+    }
+  }
+  if(vids.length<3)return null;
+  const best=[...vids].sort((a,b)=>b.v-a.v).slice(0,40);
+  const examples=[...vids].filter(v=>v.x!=null&&v.x>=2).sort((a,b)=>b.x-a.x||b.v-a.v);
+  const ex=(examples.length>=3?examples:[...vids].sort((a,b)=>b.v-a.v)).slice(0,6);
+  const cnt=(arr)=>{const m=new Map();for(const k of arr)m.set(k,(m.get(k)||0)+1);return [...m.entries()].sort((a,b)=>b[1]-a[1]);};
+  const refs=cnt(best.flatMap(v=>usRefs(v.t))).slice(0,10);
+  const tags=cnt(best.flatMap(v=>[...new Set(v.g)]).filter(t=>!GENERIC_TAGS.has(t)&&!STOP.has(t))).filter(e=>e[1]>=2).slice(0,12);
+  // posting time (Paris) – best 3-hour window
+  const hours=best.filter(v=>v.p).map(v=>hourIn(new Date(v.p),'Europe/Paris')).filter(h=>!isNaN(h));
+  let win=null;
+  if(hours.length>=5){
+    let bestN=-1,bestH=0;
+    for(let h=0;h<24;h++){const n=hours.filter(x=>(x-h+24)%24<3).length;if(n>bestN){bestN=n;bestH=h;}}
+    const now=new Date(),hp=hourIn(now,'Europe/Paris'),hn=hourIn(now,'America/New_York');
+    const off=(hp-hn+24)%24;
+    win={from:bestH,to:(bestH+3)%24,ny:(bestH-off+24)%24,nyTo:(bestH+3-off+24)%24,n:bestN,total:hours.length};
+  }
+  const shortsD=best.filter(v=>isShort(v.d)).map(v=>v.d);
+  const words=best.map(v=>String(v.t).split(/\s+/).filter(Boolean).length);
+  const pats=[
+    {k:'un chiffre',re:/\d/},
+    {k:'un emoji',re:/\p{Extended_Pictographic}/u},
+    {k:'un mot en MAJUSCULES',re:/\b[A-Z]{3,}\b/},
+    {k:'une question',re:/\?/},
+    {k:'un hashtag dans le titre',re:/#\w/},
+    {k:'une référence US',re:US_RE}
+  ].map(p=>{const m=best.filter(v=>{p.re.lastIndex=0;return p.re.test(v.t);});return {k:p.k,pct:Math.round(100*m.length/best.length),ex:m[0]&&m[0].t};})
+   .filter(p=>p.pct>=25).sort((a,b)=>b.pct-a.pct);
+  return {mode,nCh:pool.length,nV:best.length,ex,refs,tags,win,durMed:shortsD.length>=3?Math.round(median(shortsD)):null,wordsMed:words.length?Math.round(median(words)):null,pats};
+}
+function hourIn(date,tz){
+  try{const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,hour:'numeric',hourCycle:'h23'}).formatToParts(date).find(x=>x.type==='hour');return p?(+p.value)%24:NaN;}
+  catch(err){return NaN;}
+}
+const trUrl=t=>'https://translate.google.com/?sl=auto&tl=fr&op=translate&text='+encodeURIComponent(t);
+const hh=h=>String(h).padStart(2,'0')+' h';
+function renderUS(list){
+  const box=$('#usBox');
+  if(!state.results.length){box.style.display='none';return;}
+  box.style.display='block';
+  const r=usInsights(list),out=$('#usBody');
+  if(!r){out.innerHTML='<p class="hint">Pas assez de chaînes anglophones ou orientées US dans les résultats affichés. Lance une recherche avec Pays = États-Unis et Langue = Anglais.</p>';return;}
+  const tips=[];
+  if(r.refs.length)tips.push('Glisse des <b>références américaines</b> dans tes titres : '+r.refs.slice(0,5).map(e=>esc(e[0])).join(', ')+'.');
+  if(r.win)tips.push('Publie entre <b>'+hh(r.win.from)+' et '+hh(r.win.to)+'</b> (heure de Paris), soit '+hh(r.win.ny)+'–'+hh(r.win.nyTo)+' à New York.');
+  if(r.durMed)tips.push('Vise des Shorts d\'environ <b>'+r.durMed+' secondes</b>.');
+  if(r.wordsMed)tips.push('Des titres courts : environ <b>'+r.wordsMed+' mots</b>.');
+  if(r.tags.length)tips.push('Réutilise les <b>tags</b> qui reviennent : '+r.tags.slice(0,5).map(e=>'#'+esc(e[0])).join(' ')+'.');
+  if(r.refs.some(e=>/trump|biden|white house/.test(e[0])))tips.push('⚠️ La politique (Trump, Biden…) fait des vues mais YouTube limite souvent les pubs dessus : RPM plus bas.');
+  let h='<p class="hint" style="margin-top:4px">Basé sur '+r.nV+' vidéos de '+r.nCh+' chaînes '+(r.mode==='us'?'orientées US':'anglophones (pas assez de chaînes clairement US)')+' parmi les résultats affichés.</p>';
+  h+='<div class="seedlbl">À appliquer</div><ul class="tips">'+tips.map(t=>'<li>'+t+'</li>').join('')+'</ul>';
+  h+='<div class="seedlbl">Titres qui cartonnent (à t\'inspirer, pas à copier)</div><div class="vids">'+r.ex.map(v=>
+    '<div class="vid">'+
+    '<a href="https://www.youtube.com/'+(isShort(v.d)?'shorts/':'watch?v=')+esc(v.id)+'" target="_blank" rel="noopener"><img loading="lazy" src="https://i.ytimg.com/vi/'+esc(v.id)+'/mqdefault.jpg" alt=""></a>'+
+    '<div><div class="t">'+esc(v.t)+'</div><div class="m">'+
+    (v.x!=null&&v.x>=2?'<span class="tag x">x'+(v.x>=10?Math.round(v.x):v.x.toFixed(1).replace('.',','))+'</span>':'')+
+    fmt(v.v)+' vues · '+esc(v.ch)+' · <a href="'+trUrl(v.t)+'" target="_blank" rel="noopener">Traduire</a></div></div></div>').join('')+'</div>';
+  if(r.refs.length)h+='<div class="seedlbl">Références US qui reviennent</div><div class="chips">'+r.refs.map(e=>'<span class="chip static">'+esc(e[0])+' <small>'+e[1]+'</small></span>').join('')+'</div>';
+  if(r.tags.length)h+='<div class="seedlbl">Tags les plus utilisés</div><div class="chips">'+r.tags.map(e=>'<span class="chip static">#'+esc(e[0])+' <small>'+e[1]+'</small></span>').join('')+'</div>';
+  if(r.pats.length)h+='<div class="seedlbl">Forme des titres</div><ul class="tips">'+r.pats.map(p=>'<li><b>'+p.pct+' %</b> contiennent '+p.k+(p.ex?' : <i>'+esc(p.ex)+'</i>':'')+'</li>').join('')+'</ul>';
+  if(r.win)h+='<p class="hint">Heure de publication : '+r.win.n+' des '+r.win.total+' vidéos les plus vues sont sorties dans ce créneau.</p>';
+  out.innerHTML=h;
+}
+
 async function ingest(items,via){
   const byCh=new Map();
   for(const it of items){
@@ -508,8 +647,9 @@ async function ingest(items,via){
   const seeds=[...byCh.values()].flat();
   const st={};
   for(const ids of chunk(seeds.map(s=>s.id),50)){
-    const r=await yt('videos',{part:'statistics,contentDetails',id:ids.join(',')},1);
-    for(const v of r.items||[])st[v.id]={v:+((v.statistics&&v.statistics.viewCount)||0),d:isoDur(v.contentDetails&&v.contentDetails.duration)};
+    const r=await yt('videos',{part:'snippet,statistics,contentDetails',id:ids.join(',')},1);
+    for(const v of r.items||[])st[v.id]={v:+((v.statistics&&v.statistics.viewCount)||0),d:isoDur(v.contentDetails&&v.contentDetails.duration),
+      p:v.snippet&&v.snippet.publishedAt,g:tagsOf(v.snippet),l:langOf(v.snippet)};
   }
   seeds.forEach(s=>Object.assign(s,st[s.id]||{}));
   for(const c of state.results){
@@ -606,7 +746,7 @@ function saveLast(){LS.set('ryt_last',{v:2,results:state.results,meta:state.meta
 
 /* ---------- filters ---------- */
 const FIDS=['fSubMin','fSubMax','fAgeMax','fAvgMin','fRatioMin','fShortsMin','fLastMax','fVidsMax'];
-function readFilters(){const f={};FIDS.forEach(id=>f[id]=parseNum($('#'+id).value));f.sort=$('#fSort').value;f.niche=state.niche;return f;}
+function readFilters(){const f={};FIDS.forEach(id=>f[id]=parseNum($('#'+id).value));f.sort=$('#fSort').value;f.us=$('#fUs').value==='1';f.niche=state.niche;return f;}
 const ratio=c=>c.subs>0&&c.a&&c.a.avg!=null?c.a.avg/c.subs:null;
 function passes(c,f){
   const a=c.a||{};
@@ -618,6 +758,7 @@ function passes(c,f){
   if(f.fShortsMin!=null&&!(a.shortsPct>=f.fShortsMin))return false;
   if(f.fLastMax!=null&&!(daysSince(a.last)<=f.fLastMax))return false;
   if(f.fVidsMax!=null&&c.vids>f.fVidsMax)return false;
+  if(f.us&&!usInfo(c).us)return false;
   if(f.niche&&!inNiche(c,f.niche))return false;
   return true;
 }
@@ -630,7 +771,8 @@ const sorters={
   sv90:c=>(c.a&&c.a.sv90)??NEG,
   freq:c=>(c.a&&c.a.perWeek)??NEG,
   subsAsc:c=>c.subs==null?NEG:-c.subs,
-  subsDesc:c=>c.subs??NEG
+  subsDesc:c=>c.subs??NEG,
+  us:c=>usInfo(c).score*1000+Math.min(999,(ratio(c)??0)*100)
 };
 const PRESETS={
   pepites:{fShortsMin:'70',fAgeMax:'12',fRatioMin:'1',fLastMax:'14',fSort:'ratio'},
@@ -639,16 +781,18 @@ const PRESETS={
   reset:{fSort:'ratio'}
 };
 function applyPreset(name){
-  const p=PRESETS[name];FIDS.forEach(id=>$('#'+id).value=p[id]||'');$('#fSort').value=p.fSort||'ratio';
+  const p=PRESETS[name];FIDS.forEach(id=>$('#'+id).value=p[id]||'');$('#fSort').value=p.fSort||'ratio';if(name==='reset')$('#fUs').value='';
   saveFilters();render();
 }
-function saveFilters(){const o={};FIDS.concat('fSort').forEach(id=>o[id]=$('#'+id).value);LS.set('ryt_filters',o);}
+function saveFilters(){const o={};FIDS.concat('fSort','fUs').forEach(id=>o[id]=$('#'+id).value);LS.set('ryt_filters',o);}
 function loadFilters(){const o=LS.get('ryt_filters',null);if(o)Object.keys(o).forEach(id=>{const el=$('#'+id);if(el&&o[id]!=null)el.value=o[id];});}
 
 /* ---------- render ---------- */
 function statCell(k,v){return '<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';}
 function badgesFor(c){
   const a=c.a||{},r=ratio(c),age=monthsSince(c.created),b=[];
+  const u=usInfo(c);
+  if(u.us)b.push('<span class="badge us" title="'+esc(u.why.join(', '))+'">🇺🇸 '+(c.country==='US'?'Chaîne US':'Orientée US')+'</span>');
   if(age!=null&&age<=12&&r!=null&&r>=1)b.push('<span class="badge hot">🔥 Pépite</span>');
   if(r!=null&&r>=2)b.push('<span class="badge good">📈 Ratio x'+(r>=10?Math.round(r):r.toFixed(1).replace('.',','))+'</span>');
   if(a.outlier!=null&&a.outlier>=10)b.push('<span class="badge good">🚀 Outlier x'+Math.round(a.outlier)+'</span>');
@@ -694,10 +838,11 @@ function card(c){
     '<div class="ch-head">'+(c.thumb?'<img class="av" loading="lazy" src="'+esc(c.thumb)+'" alt="">':'<div class="av"></div>')+
     '<div style="min-width:0"><a class="ch-name" href="'+url+'" target="_blank" rel="noopener">'+esc(c.name)+'</a><div class="ch-sub">'+sub+'</div></div></div>'+
     '<div class="badges">'+badgesFor(c)+'</div>'+stats+
-    ((c.topics&&c.topics.length)||(c.via&&c.via.length)?'<div class="ch-via">'+
-      (c.topics&&c.topics.length?'Catégories : '+esc(c.topics.map(topicLabel).join(', ')):'')+
-      (c.topics&&c.topics.length&&c.via&&c.via.length?'<br>':'')+
-      (c.via&&c.via.length?'Trouvée via : '+esc(c.via.join(', ')):'')+'</div>':'')+
+    (()=>{const lines=[],u=usInfo(c);
+      if(c.topics&&c.topics.length)lines.push('Catégories : '+esc(c.topics.map(topicLabel).join(', ')));
+      if(u.why.length)lines.push('🇺🇸 Indices US : '+esc(u.why.join(', ')));
+      if(c.via&&c.via.length)lines.push('Trouvée via : '+esc(c.via.join(', ')));
+      return lines.length?'<div class="ch-via">'+lines.join('<br>')+'</div>':'';})()+
     '<details><summary>Voir les vidéos</summary>'+
       (seeds?'<div class="seedlbl">Trouvée grâce à :</div><div class="vids">'+seeds+'</div>':'')+
       (top?'<div class="seedlbl">Ses meilleures vidéos récentes :</div><div class="vids">'+top+'</div>':'')+
@@ -742,7 +887,7 @@ function digNiche(){
 }
 function render(){
   const f=readFilters();
-  const active=FIDS.filter(id=>f[id]!=null).length;
+  const active=FIDS.filter(id=>f[id]!=null).length+(f.us?1:0);
   $('#filterCount').textContent=active?active+' actif'+(active>1?'s':''):'';
   const base=state.results.filter(c=>passes(c,{...f,niche:null}));
   if(state.niche&&!base.some(c=>inNiche(c,state.niche)))state.niche=null;
@@ -751,6 +896,7 @@ function render(){
   list.sort((x,y)=>key(y)-key(x));
   const has=state.results.length>0;
   renderNiches(base);
+  renderUS(list);
   $('#toolbar').style.display=has?'flex':'none';
   $('#empty').style.display=has?'none':'block';
   const canMore=has&&state.job&&state.job.more;
@@ -788,12 +934,12 @@ function syncMode(){
 function exportCsv(){
   const f=readFilters(),key=sorters[f.sort]||sorters.ratio;
   const list=state.results.filter(c=>passes(c,f)).sort((x,y)=>key(y)-key(x));
-  const head=['Chaîne','Lien','Abonnés','Créée le','Vidéos','Vues totales','Vues moy.','Médiane','Ratio vues/abo','Moy. Shorts','Moy. longues','% Shorts','Vidéos/sem','Dernière vidéo','Outlier','Vues Shorts 90j','Catégories','Trouvée via'];
+  const head=['Chaîne','Lien','Abonnés','Créée le','Vidéos','Vues totales','Vues moy.','Médiane','Ratio vues/abo','Moy. Shorts','Moy. longues','% Shorts','Vidéos/sem','Dernière vidéo','Outlier','Vues Shorts 90j','Catégories','Trouvée via','Orientation US'];
   const rows=list.map(c=>{const a=c.a||{},r=ratio(c);return [
     c.name,'https://www.youtube.com/channel/'+c.id,c.subs??'',(c.created||'').slice(0,10),c.vids,c.views,
     a.avg!=null?Math.round(a.avg):'',a.med!=null?Math.round(a.med):'',r!=null?r.toFixed(3):'',
     a.avgShort!=null?Math.round(a.avgShort):'',a.avgLong!=null?Math.round(a.avgLong):'',a.shortsPct??'',
-    a.perWeek!=null?a.perWeek.toFixed(1):'',(a.last||'').slice(0,10),a.outlier!=null?a.outlier.toFixed(1):'',a.sv90??'',(c.topics||[]).map(topicLabel).join(', '),(c.via||[]).join(', ')];});
+    a.perWeek!=null?a.perWeek.toFixed(1):'',(a.last||'').slice(0,10),a.outlier!=null?a.outlier.toFixed(1):'',a.sv90??'',(c.topics||[]).map(topicLabel).join(', '),(c.via||[]).join(', '),usInfo(c).why.join(', ')];});
   const csv=[head,...rows].map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\n');
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
@@ -838,7 +984,7 @@ $('#go').onclick=()=>run(false);
 $('#more').onclick=()=>run(true);
 $('#q').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();run(false);}});
 $('#pages').onchange=costHint;
-FIDS.concat('fSort').forEach(id=>$('#'+id).addEventListener('input',()=>{saveFilters();render();}));
+FIDS.concat('fSort','fUs').forEach(id=>$('#'+id).addEventListener('input',()=>{saveFilters();render();}));
 document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>applyPreset(b.dataset.preset));
 $('#csv').onclick=exportCsv;
 $('#clear').onclick=()=>{state.results=[];state.meta=null;state.job=null;state.niche=null;LS.del('ryt_last');setStatus('');render();};
